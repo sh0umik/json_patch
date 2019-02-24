@@ -1,5 +1,8 @@
 library json_patch;
 
+import 'dart:convert';
+
+
 class JsonPatchOperation {
   String op;
   String path;
@@ -20,34 +23,39 @@ class JsonPatchOperation {
 
 class JsonPatch {
 
-  List<JsonPatchOperation> buildPatches(Map oldJson, Map newJson){
+  List<JsonPatchOperation> buildPatchesFromMap(Map oldJson, Map newJson) {
     return diff(oldJson, newJson, "");
   }
 
+  List<JsonPatchOperation> buildPatchesFromString(String oldJson, String newJson) {
+    var oldEncodedJson = jsonDecode(oldJson);
+    var newEncodedJson = jsonDecode(newJson);
+    return diff(oldEncodedJson, newEncodedJson, "");
+  }
 }
 
-List<JsonPatchOperation> diff(Map<String, dynamic> a, Map<String, dynamic> b, String path){
-
+List<JsonPatchOperation> diff(
+    Map<String, dynamic> a, Map<String, dynamic> b, String path) {
   List<JsonPatchOperation> patches = <JsonPatchOperation>[];
 
-  b.forEach((key, bv){
+  b.forEach((key, bv) {
     var p = makePath(path, key);
     var av = a[key];
-    if (av == null) {
+    if (av == null && bv != null) {
       patches.add(NewPatch("add", p, bv));
     }
 
     //if types have changed then replace completely
-    if(av.runtimeType != bv.runtimeType && av != null){
+    if (av.runtimeType != bv.runtimeType && av != null) {
       patches.add(NewPatch("replace", p, bv));
     }
 
     patches.addAll(handleValues(av, bv, p));
   });
 
-  a.forEach((key, val){
+  a.forEach((key, val) {
     var found = b[key];
-    if (found == null){
+    if (found == null && val != null) {
       var p = makePath(path, key);
       patches.add(NewPatch("remove", p, null));
     }
@@ -57,11 +65,10 @@ List<JsonPatchOperation> diff(Map<String, dynamic> a, Map<String, dynamic> b, St
 }
 
 List<JsonPatchOperation> handleValues(dynamic av, dynamic bv, String p) {
-
   List<JsonPatchOperation> patches = <JsonPatchOperation>[];
 
   // Handle value if same type
-  if(av.runtimeType == bv.runtimeType) {
+  if (av.runtimeType == bv.runtimeType && av != null && bv != null) {
     if (av is Map) {
       patches.addAll(diff(av, bv, p));
     } else if (av is String || av is double || av is int || av is bool) {
@@ -96,32 +103,33 @@ List<JsonPatchOperation> handleValues(dynamic av, dynamic bv, String p) {
   return patches;
 }
 
-List<JsonPatchOperation> compareArray(List<dynamic> av, List<dynamic> bv, String p){
+List<JsonPatchOperation> compareArray(
+    List<dynamic> av, List<dynamic> bv, String p) {
   List<JsonPatchOperation> retval = <JsonPatchOperation>[];
 
-  for (var i=0; i< av.length; i++){
+  for (var i = 0; i < av.length; i++) {
     bool found = false;
-    for(var j=0; j< bv.length; j++) {
+    for (var j = 0; j < bv.length; j++) {
       if (av[i] == bv[j]) {
         found = true;
         break;
       }
     }
-    if(!found){
-      retval.add(NewPatch("remove",  makePath(p, i), null));
+    if (!found) {
+      retval.add(NewPatch("remove", makePath(p, i), null));
     }
   }
 
-  for (var i=0; i< bv.length; i++){
+  for (var i = 0; i < bv.length; i++) {
     bool found = false;
-    for(var j=0; j< av.length; j++) {
+    for (var j = 0; j < av.length; j++) {
       if (av[j] == bv[i]) {
         found = true;
         break;
       }
     }
-    if(!found){
-      retval.add(NewPatch("add",  makePath(p, i), bv[i]));
+    if (!found) {
+      retval.add(NewPatch("add", makePath(p, i), bv[i]));
     }
   }
 
@@ -129,10 +137,10 @@ List<JsonPatchOperation> compareArray(List<dynamic> av, List<dynamic> bv, String
 }
 
 bool matchValue(dynamic av, dynamic bv) {
-  if (av.runtimeType != bv.runtimeType){
+  if (av.runtimeType != bv.runtimeType) {
     return false;
   }
-  switch (av.runtimeType){
+  switch (av.runtimeType) {
     case String:
       var bt = bv.toString();
       if (bt == av) {
@@ -140,7 +148,7 @@ bool matchValue(dynamic av, dynamic bv) {
       }
       break;
     case double:
-      var bt = bv.cast<double>();
+      var bt = bv;
       if (bt == av) {
         return true;
       }
@@ -160,20 +168,20 @@ bool matchValue(dynamic av, dynamic bv) {
     case Map:
       var bt = bv.cast<Map<String, dynamic>>();
       var at = av.cast<Map<String, dynamic>>();
-      at.forEach((key, _){
-        if (!matchValue(key, bt[key])){
+      at.forEach((key, _) {
+        if (!matchValue(key, bt[key])) {
           return false;
         }
       });
-      bt.forEach((key, _){
-        if (!matchValue(key, bt[key])){
+      bt.forEach((key, _) {
+        if (!matchValue(key, bt[key])) {
           return false;
         }
       });
       return true;
       break;
     case List:
-    // todo
+      // todo
       return true;
       break;
   }
@@ -181,19 +189,17 @@ bool matchValue(dynamic av, dynamic bv) {
   return false;
 }
 
-
-JsonPatchOperation NewPatch(String operation, String path, dynamic value){
+JsonPatchOperation NewPatch(String operation, String path, dynamic value) {
   return JsonPatchOperation(op: operation, path: path, value: value);
 }
 
-String makePath(String path, dynamic newPart){
+String makePath(String path, dynamic newPart) {
   var key = newPart.toString();
   if (path == "") {
     return "/" + key;
   }
-  if (path.endsWith("/")){
+  if (path.endsWith("/")) {
     return path + key;
   }
   return path + "/" + key;
 }
-

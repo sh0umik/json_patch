@@ -1,25 +1,7 @@
 library json_patch;
 
 import 'dart:convert';
-
-
-class JsonPatchOperation {
-  String op;
-  String path;
-  dynamic value;
-  JsonPatchOperation({this.op, this.path, this.value});
-
-  Map<String, dynamic> toJSON() {
-    if (value != null) {
-      return {"op": op, "path": path, "value": value};
-    } else {
-      return {
-        "op": op,
-        "path": path,
-      };
-    }
-  }
-}
+import 'package:json_patch/model/json_patch.dart';
 
 class JsonPatch {
 

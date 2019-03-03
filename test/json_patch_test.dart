@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:json_patch/model/json_patch.dart';
 import 'package:json_patch/json_patch.dart';
 
 void main() {

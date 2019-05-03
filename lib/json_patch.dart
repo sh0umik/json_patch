@@ -4,55 +4,63 @@ import 'dart:convert';
 import 'package:json_patch/model/json_patch.dart';
 
 class JsonPatch {
+  final Set<String> ignoreFields;
+  JsonPatch({this.ignoreFields});
 
   List<JsonPatchOperation> buildPatchesFromMap(Map oldJson, Map newJson) {
-    return diff(oldJson, newJson, "");
+    return diff(ignoreFields,oldJson, newJson, "");
   }
 
   List<JsonPatchOperation> buildPatchesFromString(String oldJson, String newJson) {
     var oldEncodedJson = jsonDecode(oldJson);
     var newEncodedJson = jsonDecode(newJson);
-    return diff(oldEncodedJson, newEncodedJson, "");
+    return diff(ignoreFields, oldEncodedJson, newEncodedJson, "");
   }
 }
 
-List<JsonPatchOperation> diff(
+List<JsonPatchOperation> diff(Set<String> ignoreFields,
     Map<String, dynamic> a, Map<String, dynamic> b, String path) {
   List<JsonPatchOperation> patches = <JsonPatchOperation>[];
 
   b.forEach((key, bv) {
-    var p = makePath(path, key);
-    var av = a[key];
-    if (av == null && bv != null) {
-      patches.add(NewPatch("add", p, bv));
-    }
 
-    //if types have changed then replace completely
-    if (av.runtimeType != bv.runtimeType && av != null) {
-      patches.add(NewPatch("replace", p, bv));
-    }
+    if(!ignoreFields.contains(key)) {
+      var p = makePath(path, key);
+      var av = a[key];
+      if (av == null && bv != null) {
+        patches.add(NewPatch("add", p, bv));
+      }
 
-    patches.addAll(handleValues(av, bv, p));
+      //if types have changed then replace completely
+      if (av.runtimeType != bv.runtimeType && av != null) {
+        patches.add(NewPatch("replace", p, bv));
+      }
+
+      patches.addAll(handleValues(ignoreFields, av, bv, p));
+    }
   });
 
   a.forEach((key, val) {
-    var found = b[key];
-    if (found == null && val != null) {
-      var p = makePath(path, key);
-      patches.add(NewPatch("remove", p, null));
+
+    if(!ignoreFields.contains(key)) {
+      var found = b[key];
+      if (found == null && val != null) {
+        var p = makePath(path, key);
+        patches.add(NewPatch("remove", p, null));
+      }
     }
   });
 
   return patches;
 }
 
-List<JsonPatchOperation> handleValues(dynamic av, dynamic bv, String p) {
+List<JsonPatchOperation> handleValues(Set<String> ignoreFields, dynamic av, dynamic bv, String p) {
   List<JsonPatchOperation> patches = <JsonPatchOperation>[];
 
   // Handle value if same type
   if (av.runtimeType == bv.runtimeType && av != null && bv != null) {
     if (av is Map) {
-      patches.addAll(diff(av, bv, p));
+      patches.addAll(diff(ignoreFields, av, bv, p));
     } else if (av is String || av is double || av is int || av is bool) {
       if (!matchValue(av, bv)) {
         patches.add(JsonPatchOperation(op: "replace", path: p, value: bv));
@@ -68,7 +76,7 @@ List<JsonPatchOperation> handleValues(dynamic av, dynamic bv, String p) {
         patches.addAll(compareArray(at, bt, p));
       } else {
         for (var i = 0; i < bt.length; i++) {
-          patches = handleValues(at[i], bt[i], makePath(p, i));
+          patches = handleValues(ignoreFields, at[i], bt[i], makePath(p, i));
         }
       }
     } else if (av == null) {
